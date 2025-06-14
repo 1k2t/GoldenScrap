@@ -1,0 +1,199 @@
+; audio_converter.pio
+.program audio_rj_rx
+; Inputs: 
+; - DATA_IN (0),
+; - LRCLK (1), 
+; - SCK (2)
+; JMP:
+; - LRCLK
+.wrap_target
+    ; 残り 95 bit を読み捨て（初回はずれるが大した問題じゃない）
+    ; エッジ #1 ~ #95 (エッジ #0 は既に過ぎてる)
+    mov x, y
+data_wait_L:
+    wait 0 pin 2
+    wait 1 pin 2
+    jmp x--, data_wait_L
+bit_loop_L:
+    wait 0 pin 2
+    wait 1 pin 2
+    jmp pin, rx_read_bit_L
+    jmp rx_Rch
+rx_read_bit_L:
+    in pins, 1
+    jmp bit_loop_L
+    ; R-ch
+    ; ここに来た時点で既に 1 bit 過ぎてる
+rx_Rch:
+    push
+    mov x, y        ; 残り 95 bit を読み捨て
+data_wait_R:
+    wait 0 pin 2
+    wait 1 pin 2
+    jmp x--, data_wait_R
+rx_bit_loop_R:
+    wait 0 pin 2
+    wait 1 pin 2
+    jmp pin, rx_bit_loop_R_end
+    in pins, 1
+    jmp rx_bit_loop_R
+rx_bit_loop_R_end:
+    push
+    irq 0 rel
+.wrap
+
+% c-sdk {
+static inline void audio_rj_rx_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    const uint input_pin_count = 3;
+
+    pio_sm_config c = audio_rj_rx_program_get_default_config(offset);
+    
+    sm_config_set_in_pins(&c, pin);
+    sm_config_set_jmp_pin(&c, pin + 1);
+        
+    for(int i = 0; i < input_pin_count; i++){
+        pio_gpio_init(pio, pin);
+    }
+
+    /* true:出力 false:入力 */
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 3, false);
+
+    /* false = Shift left, autopull, after DATA_BITS */
+    sm_config_set_in_shift(&c, false, false, 32);
+
+    /* プログラムをロードさせ、プログラムの実行位置を先頭(offsetの位置)に移動します。 */
+    pio_sm_init(pio, sm, offset, &c);
+
+    /* 初期設定 */
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_put_blocking(pio, sm, (128 - 32) - 2); /* wait states */
+    pio_sm_exec(pio, sm, pio_encode_pull(false, false));
+    pio_sm_exec(pio, sm, pio_encode_out(pio_y, 32));
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
+    pio_sm_set_enabled(pio, sm, false);
+}
+%}
+
+; .program lrck_delay
+; .side_set 1 opt
+; .wrap_target
+;     mov x,y side 0
+;     wait 1 pin 0
+; lrck_wait:
+;     wait 0 pin 1
+;     wait 1 pin 1
+;     jmp x--,lrck_wait
+;     mov x,y side 1
+;     wait 0 pin 0
+; lrck_wait_2:
+;     wait 0 pin 1
+;     wait 1 pin 1
+;     jmp x--,lrck_wait_2
+; .wrap
+; % c-sdk {
+; static inline void lrck_delay_program_init(PIO pio, uint sm, uint offset, uint pin_in_base, uint pin_lrck) {
+;     
+;     pio_sm_config c = lrck_delay_program_get_default_config(offset);
+;     
+;     sm_config_set_in_pins(&c, pin_in_base);
+;     sm_config_set_in_pin_count(&c, 2);
+;     sm_config_set_sideset_pins(&c, pin_lrck);
+;         
+;     pio_gpio_init(pio, pin_in_base);        // LRCK
+;     pio_gpio_init(pio, pin_in_base + 1);    // BCK
+;     pio_gpio_init(pio, pin_lrck);
+; 
+;     // 対象のGPIOを出力に設定します。(true:出力 false:入力)
+;     pio_sm_set_consecutive_pindirs(pio, sm, pin_in_base, 2, false);
+;     pio_sm_set_consecutive_pindirs(pio, sm, pin_lrck, 1, true);
+; 
+;     // プログラムをロードさせ、プログラムの実行位置を先頭(offsetの位置)に移動します。
+;     pio_sm_init(pio, sm, offset, &c);
+; 
+;     /* 初期設定 */
+;     pio_sm_set_enabled(pio, sm, false);
+;     pio_sm_put_blocking(pio, sm, 103);
+;     pio_sm_exec(pio, sm, pio_encode_pull(false, false));
+;     pio_sm_exec(pio, sm, pio_encode_out(pio_y, 32));
+;     pio_sm_set_enabled(pio, sm, true);
+;     // ステートマシンを走らせます。 (true:開始 false:停止)
+;     pio_sm_set_enabled(pio, sm, true);
+;     pio_sm_exec(pio, sm, pio_encode_jmp(offset));
+; }
+; %}
+
+.program audio_lj_tx
+; Outputs: 
+; - DATA_OUT (0)
+; - LRCLK (1 side set), 
+;
+; Inputs:
+; - SCK (2)
+.side_set 1 opt         ; LRCLK is controlled by side-set
+.wrap_target
+    pull
+tx_data_L:
+    wait 1 pin 0
+    wait 0 pin 0
+    out pins, 1       side 0b0
+    jmp !osre, tx_data_L
+    pull
+tx_data_R:
+    wait 1 pin 0
+    wait 0 pin 0
+    out pins, 1       side 0b1
+    jmp !osre, tx_data_R
+;tx_start:
+;    set y, 1
+;tx_loop_ch:
+;    pull
+;    set x, 7
+;tx_wait:
+;    wait 1 pin 0
+;    wait 0 pin 0
+;    out null, 1
+;    jmp x--, tx_wait
+;tx_data:
+;    wait 1 pin 0
+;    wait 0 pin 0
+;    jmp !y, tx_R
+;tx_L:
+;    out pins, 1       side 0b1
+;    jmp tx_next_bit
+;tx_R:
+;    out pins, 1       side 0b0
+;tx_next_bit:
+;    jmp !osre, tx_data
+;    jmp y--, tx_loop_ch 
+.wrap
+ 
+% c-sdk {
+static inline void audio_lj_tx_program_init(PIO pio, uint sm, uint offset, uint pin_data, uint pin_lrck, uint pin_sck_in) {
+
+    pio_sm_config c = audio_lj_tx_program_get_default_config(offset);
+    
+    sm_config_set_in_pins(&c, pin_sck_in);
+    sm_config_set_in_pin_count(&c, 1);
+    sm_config_set_out_pins(&c, pin_data, 1);
+    sm_config_set_out_pin_count(&c, 1);
+    sm_config_set_sideset_pins(&c, pin_lrck);
+
+    pio_gpio_init(pio, pin_sck_in);
+    pio_gpio_init(pio, pin_data);
+    pio_gpio_init(pio, pin_lrck);
+
+    // 対象のGPIOを出力に設定します。(true:出力 false:入力)
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_sck_in, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_data, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_lrck, 1, true);
+
+    /* false = Shift left, autopull, after DATA_BITS */
+    sm_config_set_out_shift(&c, false, false, 32);
+
+    // プログラムをロードさせ、プログラムの実行位置を先頭(offsetの位置)に移動します。
+    pio_sm_init(pio, sm, offset, &c);
+    
+    // ステートマシンを走らせます。 (true:開始 false:停止)
+    pio_sm_set_enabled(pio, sm, false);
+}
+%}
