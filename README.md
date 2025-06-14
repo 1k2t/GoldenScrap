@@ -35,6 +35,8 @@
 | 8  | GND       | DAC GND | GND。うちのはDACのGNDに接続 |
 | 9  | LRCK_OUT  | DAC LCK | Pico -> DAC 音声 |
 | 10 | DAC_BCK   | DAC BCK, Pico pin27(GP21) にも接続 | Pico -> DAC音声のクロック（BCLK_INの1/4）|
+| 27 | DAC_BCK | DAC BCK, Pico pin10(DAC_BCK) にも接続 | Pico -> DAC音声のクロック（BCLK_INの1/4）|
+| 29 | BCLK_IN   | Pico 6(BCLK_IN) にも接続 | GS->Picoの音声クロック
 | 38 | GND       | GND | うちのはGS pin3,4に接続 | GND
 | 40 | VBUS      | GS pin1,2(5V), DAC VIN にも接続 |
 
