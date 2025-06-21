@@ -28,6 +28,7 @@ set(PICO_BOARD pico CACHE STRING "Board type")
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
+set(PICO_TINYUSB_PATH ${USERHOME}/local/tinyusb)
 project(dev_hid_composite C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
@@ -39,13 +40,12 @@ cmake_minimum_required(VERSION 3.13)
 
 add_executable(dev_hid_composite)
 
-pico_generate_pio_header(dev_hid_composite ${CMAKE_CURRENT_LIST_DIR}/audio_converter.pio)
+# pico_generate_pio_header(dev_hid_composite ${CMAKE_CURRENT_LIST_DIR}/audio_converter.pio)
 
 target_sources(dev_hid_composite PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/main.c
         ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
-        ${CMAKE_CURRENT_LIST_DIR}/dac.c
-        )
+    )
 
 # Make sure TinyUSB can find tusb_config.h
 target_include_directories(dev_hid_composite PUBLIC
@@ -61,3 +61,8 @@ target_link_libraries(dev_hid_composite PUBLIC pico_stdlib pico_unique_id tinyus
 pico_add_extra_outputs(dev_hid_composite)
 
 # add url via pico_set_program_url
+
+# enable usb output, disable uart output
+# pico_enable_stdio_usb(dev_hid_composite 0)
+# pico_enable_stdio_uart(dev_hid_composite 0)
+# pico_enable_stdio_semihosting(dev_hid_composite 1)

@@ -5,6 +5,9 @@
 #include "hardware/structs/pll.h"
 #include "hardware/structs/clocks.h"
 #include "hardware/dma.h"
+#include "pico/multicore.h"
+#include "dac.h"
+#include "tusb.h"
 
 #define CLK_SCK_256FS_IN_PIN 22
 #define CLK_SCK_64FS_OUT_PIN 21
@@ -30,6 +33,25 @@ typedef struct {
     uint32_t buf_out[2][BUFFER_SIZE_SAMPLES * CHANNELS];
     bool rx_sync;
 } AudioConv;
+
+#include "osal/osal.h"
+/* core #1 -> core #0 */
+typedef enum {
+    AUDIO_MSG_NULL = 0,
+    AUDIO_MSG_DATA_READY_1 = 1,
+    AUDIO_MSG_DATA_READY_2 = 2
+} _audio_msg_t;
+
+#define _AUDIO_SAMPLE_SIZE sizeof(Audio_sample_t)
+#define _AUDIO_FIFO_DEPTH (BUFFER_SIZE_SAMPLES * 4)
+typedef struct {
+  // FIFO
+  tu_fifo_t ff;
+  uint8_t ff_buf[_AUDIO_SAMPLE_SIZE * _AUDIO_FIFO_DEPTH];
+  OSAL_MUTEX_DEF(ff_mutex_w);
+  OSAL_MUTEX_DEF(ff_mutex_r);
+  Audio_sample_t *sm[2]; /* pointer to shared memory */
+} _audio_uac_ctx;
 
 #define REL_IRQ_NUM(_IRQ, _SM) (((_IRQ) % 4) + ((_SM + (_IRQ)) & 3));
 static AudioConv *_irq_rx_sync_args;
@@ -61,9 +83,11 @@ static void dma_i2s_in_handler(void) {
     if (*(int32_t**)dma_hw->ch[arg->in_ctl_ch].read_addr == arg->buf_in[0]) {
         // It is inputting to the second buffer so we can overwrite the first
         process_audio(arg->buf_in[0], arg->buf_out[0], BUFFER_SIZE_SAMPLES * CHANNELS);
+        multicore_fifo_push_blocking((_audio_msg_t)AUDIO_MSG_DATA_READY_1);
     } else {
         // It is currently inputting the first buffer, so we write to the second
         process_audio(arg->buf_in[1], arg->buf_out[1], BUFFER_SIZE_SAMPLES * CHANNELS);
+        multicore_fifo_push_blocking((_audio_msg_t)AUDIO_MSG_DATA_READY_2);
     }
     dma_hw->ints0 = 1u << arg->in_dat_ch;  // clear the IRQ
 }
@@ -76,6 +100,15 @@ void AudioConv_init(AudioConv *this, PIO pio, int pin_base_in, int pin_base_out)
     audio_rj_rx_program_init(this->pio, this->in_sm, offset_rx, pin_base_in);
 
     /* Initialize Tx DMA channel */
+    /* 
+      1. ctl ch を起動
+      2. ctl ch により、in_ctl_desc に格納された転送先バッファのアドレスが data ch. の転送先アドレスレジスタに格納される
+         同時に、ctl ch の転送元アドレスが次に進む。アドレス 3 bit でラップアラウンドするので、ctl_desc[0], ctl_desc[1] を交互に繰り返す。
+         同時に、data ch が起動する（転送先アドレスレジスタのエイリアス al2_write_addr_trig に書き込むとそうなる）
+      3. data ch の転送が完了する。同時に、割り込みが発生する（dma_i2s）
+      4. chain で指定された、ctl_ch が起動する。
+      5. [2] に戻る。
+     */
     this->in_ctl_ch = dma_claim_unused_channel(true);
     this->in_dat_ch = dma_claim_unused_channel(true);
     this->in_ctl_desc[0] = &(this->buf_in[0][0]);
@@ -158,7 +191,7 @@ void AudioConv_init(AudioConv *this, PIO pio, int pin_base_in, int pin_base_out)
 
 static AudioConv __attribute__((aligned(8))) i2s;
 
-void dac_start(void) {
+static void dac_start(void) {
 
     /* SCK 分周 */
     clock_gpio_init(CLK_SCK_64FS_OUT_PIN, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, 4);
@@ -173,4 +206,61 @@ void dac_start(void) {
     }
 
     return;
+}
+
+
+static _audio_uac_ctx _uacctx;
+
+static void _cpu0_sio_irq_handler(void){
+    if(multicore_fifo_rvalid()){
+        _audio_msg_t msg = (_audio_msg_t)multicore_fifo_pop_blocking();
+        switch(msg){
+            case AUDIO_MSG_DATA_READY_1:
+                // tu_fifo_write_n(&_uacctx.ff, (void *)_uacctx.sm[0], BUFFER_SIZE_SAMPLES);
+                tud_audio_write((void *)_uacctx.sm[0], CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX * BUFFER_SIZE_SAMPLES);
+                break;
+            case AUDIO_MSG_DATA_READY_2:
+                // tu_fifo_write_n(&_uacctx.ff, (void *)_uacctx.sm[1], BUFFER_SIZE_SAMPLES);
+                tud_audio_write((void *)_uacctx.sm[1], CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX * BUFFER_SIZE_SAMPLES);
+                break;
+            default:
+                break;
+        }
+    }
+    multicore_fifo_clear_irq();
+}
+
+/* runs on CPU0 */
+void audio_init(void){
+    _audio_uac_ctx *ctx = &_uacctx;
+    /* 
+        tu_fifo_config(&ctx->ff, ctx->ff_buf, TU_ARRAY_SIZE(ctx->ff_buf) / _AUDIO_SAMPLE_SIZE), _AUDIO_SAMPLE_SIZE, true);
+        osal_mutex_t mutex_rd = osal_mutex_create(&ctx->ff_mutex_r);
+        osal_mutex_t mutex_wr = osal_mutex_create(&ctx->ff_mutex_w);
+        TU_ASSERT(mutex_rd != NULL && mutex_wr != NULL, );
+        tu_fifo_config_mutex(&ctx->ff, mutex_wr, mutex_rd);
+    */
+    ctx->sm[0] = (Audio_sample_t *)i2s.buf_out[0];
+    ctx->sm[1] = (Audio_sample_t *)i2s.buf_out[1];
+
+    irq_set_exclusive_handler(SIO_FIFO_IRQ_NUM(0), _cpu0_sio_irq_handler);
+    irq_set_enabled(SIO_FIFO_IRQ_NUM(0), true);
+
+    multicore_launch_core1(dac_start);
+}
+
+static size_t _audio_get_fifo_count(_audio_uac_ctx *ctx){
+    return (size_t)tu_fifo_count(&ctx->ff);
+}
+
+static size_t _audio_get_samples(_audio_uac_ctx *ctx, Audio_sample_t *buf, size_t n){
+    return (size_t)tu_fifo_read_n(&ctx->ff, (void *)buf, n);
+}
+
+size_t Audio_get_fifo_count(void){
+    return _audio_get_fifo_count(&_uacctx);
+}
+
+size_t Audio_get_samples(Audio_sample_t *buf, size_t n){
+    return _audio_get_samples(&_uacctx, buf, n);
 }
