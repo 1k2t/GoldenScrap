@@ -38,6 +38,7 @@
 #include "pico\multicore.h"
 #include "dac.h"
 #include "uac_cap.h"
+#include "midi_app.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -45,71 +46,49 @@
 
 // #define IGNORE_MIDI_CC
 
-static bool led_usb_state = false;
-static bool led_uart_state = false;
-
-void midi_task(void);
-void led_task(void);
-
 /*------------- MAIN -------------*/
-int main(void)
-{
-  board_init();
-  // stdio_init_all();
-  tusb_init();
-
-  //printf("Hello, world!\n");
-  // Initialise UART 0
-  uart_init(uart0, 31250);
-  
-  // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
-  gpio_set_function(0, GPIO_FUNC_UART);
-  gpio_set_function(1, GPIO_FUNC_UART);
-
-  // Start DAC format converter
-  audio_init();
-  uac_cap_init();
-
-  while (1)
+/*
+  int main(void)
   {
-    tud_task(); // tinyusb device task
-    led_task();
-    midi_task();
-    uac_cap_task();
+    board_init();
+    // stdio_init_all();
+    tusb_init();
+
+    //printf("Hello, world!\n");
+    // Initialise UART 0
+    uart_init(uart0, 31250);
+    
+    // Set the GPIO pin mux to the UART - 0 is TX, 1 is RX
+    gpio_set_function(0, GPIO_FUNC_UART);
+    gpio_set_function(1, GPIO_FUNC_UART);
+
+    // Start DAC format converter
+    audio_init();
+    uac_cap_init();
+
+    while (1)
+    {
+      tud_task(); // tinyusb device task
+      led_task();
+      midi_task();
+      uac_cap_task();
+    }
+
+    return 0;
   }
+*/
 
-  return 0;
+MidiApp *MidiApp_init(MidiApp *this, uart_inst_t *uart, uint pin_tx, uint pin_rx){
+  this->uart = uart;
+  this->pin_rx = pin_rx;
+  this->pin_tx = pin_tx;
+  this->buf_pos = 0;
+  this->buf_valid = 0;
+  uart_init(this->uart, MIDI_DATA_RATE_BPS);
+  gpio_set_function(this->pin_rx, GPIO_FUNC_UART);
+  gpio_set_function(this->pin_tx, GPIO_FUNC_UART);
+  return this;
 }
-
-//--------------------------------------------------------------------+
-// Device callbacks
-//--------------------------------------------------------------------+
-
-// Invoked when device is mounted
-void tud_mount_cb(void)
-{
-}
-
-// Invoked when device is unmounted
-void tud_umount_cb(void)
-{
-  led_usb_state = false;
-  led_uart_state = false;
-}
-
-// Invoked when usb bus is suspended
-// remote_wakeup_en : if host allow us to perform remote wakeup
-// Within 7ms, device must draw an average of current less than 2.5 mA from bus
-void tud_suspend_cb(bool remote_wakeup_en)
-{
-  (void)remote_wakeup_en;
-}
-
-// Invoked when usb bus is resumed
-void tud_resume_cb(void)
-{
-}
-
 //--------------------------------------------------------------------+
 // UART Helper
 //--------------------------------------------------------------------+
@@ -161,12 +140,10 @@ void midi_task(void)
         uart_write_blocking(uart0, packet + 1, length);
       }
     }
-
-    led_usb_state = true;
   }
   else
   {
-    led_usb_state = false;
+    ;
   }
 
   // Handle UART to USB direction
@@ -189,32 +166,66 @@ void midi_task(void)
   {
     buf_pos = tud_midi_stream_write(0, buffer, buf_valid);
 
-    led_uart_state = true;
   }
   else
   {
     buf_pos = 0;
-
-    led_uart_state = false;
   }
 }
 
-//--------------------------------------------------------------------+
-// LED Task
-//--------------------------------------------------------------------+
-
-void led_task(void)
+void MidiApp_task(MidiApp *m)
 {
-  static uint32_t last_active_ms = 0;
-
-  if (led_usb_state || led_uart_state)
+  if (!tud_midi_mounted())
   {
-    board_led_write(true);
-
-    last_active_ms = board_millis();
+    return;
   }
-  else if (board_millis() - last_active_ms > 10)
+
+  // Handle USB to UART direction
+  uint8_t packet[4];
+  if (tud_midi_available() && uart_is_writable(m->uart))
   {
-    board_led_write(false);
+    tud_midi_packet_read(packet);
+
+    static const size_t cin_to_length[] =
+        {0, 0, 2, 3, 3, 1, 2, 3, 3, 3, 3, 3, 2, 2, 3, 1};
+
+    uint8_t cid = packet[0] & 0xF;
+#ifdef IGNORE_MIDI_CC
+    if (cid != 0x0B && cid != 0x0C)
+#endif
+    {
+      size_t length = cin_to_length[cid];
+      if (length)
+      {
+        uart_write_blocking(m->uart, packet + 1, length);
+      }
+    }
+  }
+  else
+  {
+    ;
+  }
+
+  // Handle UART to USB direction
+
+  size_t length = m->buf_valid - m->buf_pos;
+  if (length)
+  {
+    m->buf_pos += tud_midi_stream_write(0, m->buffer + m->buf_pos, length);
+    if (m->buf_pos < m->buf_valid)
+    {
+      return;
+    }
+  }
+
+  m->buf_valid = uart_read(uart0, m->buffer, sizeof(m->buffer));
+  if (m->buf_valid)
+  {
+    m->buf_pos = tud_midi_stream_write(0, m->buffer, m->buf_valid);
+
+  }
+  else
+  {
+    m->buf_pos = 0;
   }
 }

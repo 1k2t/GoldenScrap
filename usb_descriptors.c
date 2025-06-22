@@ -33,7 +33,7 @@
  *   [MSB]     AUDIO | MIDI | HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4200 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
+#define USB_PID           (0x4400 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
     _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VENDOR, 5) )
 
 //--------------------------------------------------------------------+
@@ -77,10 +77,14 @@ enum
 {
   ITF_NUM_AUDIO_CONTROL = 0,
   ITF_NUM_AUDIO_STREAMING,
+  ITF_NUM_MIDI,
+  ITF_NUM_MIDI_STREAMING,
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + CFG_TUD_AUDIO * GS_TUD_AUDIO_IN_DESC_LEN)
+#define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + \
+  CFG_TUD_AUDIO * GS_TUD_AUDIO_IN_DESC_LEN +\
+  CFG_TUD_MIDI * TUD_MIDI_DESC_LEN)
 
 #if TU_CHECK_MCU(OPT_MCU_LPC175X_6X, OPT_MCU_LPC177X_8X, OPT_MCU_LPC40XX)
   // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
@@ -92,7 +96,11 @@ enum
   #define EPNUM_AUDIO   0x08
 
 #else
-  #define EPNUM_AUDIO   0x01
+  #define EPNUM_AUDIO    (0x01)
+
+  #define EPNUM_MIDI     (0x02)
+  #define EPNUM_MIDI_OUT (EPNUM_MIDI)
+  #define EPNUM_MIDI_IN  (EPNUM_MIDI | 0x80)
 #endif
 
 uint8_t const desc_configuration[] =
@@ -101,7 +109,11 @@ uint8_t const desc_configuration[] =
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  GS_TUD_AUDIO_IN_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ STRID_AUDIO_IN, /*_nBytesPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX, /*_nBitsUsedPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX*8, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO_EP_SZ_IN)
+  GS_TUD_AUDIO_IN_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ STRID_AUDIO_IN, /*_nBytesPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX, /*_nBitsUsedPerSample*/ 20, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO_EP_SZ_IN),
+
+  // Interface number, string index, EP Out & EP In address, EP size
+  TUD_MIDI_DESCRIPTOR(ITF_NUM_MIDI, STRID_MIDI, EPNUM_MIDI_OUT, EPNUM_MIDI_IN, 64)
+
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -126,7 +138,7 @@ char const* string_desc_arr [] = {
     "GoldenScrap Audio IN",                        // 4: Audio Interface
     "GoldenScrap Audio IN 1", 
     "GoldenScrap Audio IN 2",
-    
+    "GoldenScrap MIDI"
 };
 static uint16_t _desc_str[32 + 1];
 

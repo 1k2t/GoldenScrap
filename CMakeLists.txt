@@ -40,10 +40,12 @@ cmake_minimum_required(VERSION 3.13)
 
 add_executable(dev_hid_composite)
 
-# pico_generate_pio_header(dev_hid_composite ${CMAKE_CURRENT_LIST_DIR}/audio_converter.pio)
+pico_generate_pio_header(dev_hid_composite ${CMAKE_CURRENT_LIST_DIR}/audio_converter.pio)
 
 target_sources(dev_hid_composite PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/main.c
+        ${CMAKE_CURRENT_LIST_DIR}/dac.c
+        ${CMAKE_CURRENT_LIST_DIR}/midi_app.c
         ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
     )
 

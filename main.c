@@ -40,6 +40,9 @@
 #include "tusb.h"
 #include "tusb_config.h"
 
+#include "midi_app.h"
+#include "dac.h"
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
@@ -116,11 +119,16 @@ int main(void)
     *p_buff++;
   }
 
+  MidiApp usbmidi;
+  MidiApp_init(&usbmidi, uart0, 0, 1);
+  audio_init();
+  
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
     audio_task();
+    MidiApp_task(&usbmidi);
   }
 }
 
@@ -163,11 +171,13 @@ void audio_task(void)
 {
   // Yet to be filled - e.g. read audio from I2S buffer.
   // Here we simulate a I2S receive callback every 1ms.
-  static uint32_t start_ms = 0;
-  uint32_t curr_ms = board_millis();
-  if ( start_ms == curr_ms ) return; // not enough time
-  start_ms = curr_ms;
-  tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+  /* 
+    static uint32_t start_ms = 0;
+    uint32_t curr_ms = board_millis();
+    if ( start_ms == curr_ms ) return; // not enough time
+    start_ms = curr_ms;
+    tud_audio_write(i2s_dummy_buffer, AUDIO_SAMPLE_RATE/1000 * CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX * CFG_TUD_AUDIO_FUNC_1_N_CHANNELS_TX);
+  */
 }
 
 //--------------------------------------------------------------------+
