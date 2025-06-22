@@ -38,21 +38,45 @@
 | 38 | GND       | GND | うちのはGS pin3,4に接続 | GND
 | 40 | VBUS      | GS pin1,2(5V), DAC VIN にも接続 |
 
-# GS モジュールのピン配置
-1. 5V
-1. 5V
-1. GND
-1. GND
-1. SDATA
-1. LRCK
-1. BCLK
-1. GND
-1. MIDI_IN_A
-1. MIDI_IN_B
-1. MIDI_OUT
-1. SDDA2
-1. RESET#
-1. GND
+# 03-SC-R5 pinout
+|Pin #|Label|Description|
+|:---:|:---|:---:|
+|1  |5V         |Power +5V|
+|2  |5V         |Power +5V|
+|3  |GND        |Power GND|
+|4  |GND        |Power GND|
+|5  |SDATA_1    ||
+|6  |LRCK       ||
+|7  |BCLK       ||
+|8  |GND        ||
+|9  |MIDI_IN_A  ||
+|10 |MIDI_IN_B  ||
+|11 |MIDI_OUT   ||
+|12 |SDATA_2    ||
+|13 |RESET#     ||
+|14 |GND        ||
+
+# 03-SC-SA pinout
+|Connector|Pin #|Label|Description|
+|:---:|:---:|:---|:---|
+|CN4    |1|VCC|Power +5V|
+|       |2|VCC|Power +5V|
+|       |3|GND|Power GND|
+|       |4|GND|Power GND|
+|       |5|_RESET#|Reset?|
+|CN5    |1|BCK_64FS|Audio data bit clock(64Fs)|
+|       |2|SDATA_1|Audio Data #1(64Fs)|
+|       |3|SDATA_2|Audio Data #2(64Fs)|
+|       |4|LRCK |Audio LRCK|
+|       |5|SCK_256FS|Audio Data SCK(256Fs)|
+|       |6|GND|Power GND|
+|       |7|MIDI_OUT_1|MIDI out #1|
+|       |8|MIDI_IN_1 |MIDI in #1|
+|       |9|MIDI_OUT_2|MIDI out #2|
+|       |10|MIDI_IN_2 |MIDI in #2|
+|       |11|GND|Power GND|
+
+
 
 ```
 20 bit(Right-Justified)
