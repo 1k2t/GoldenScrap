@@ -1,5 +1,17 @@
 # GoldenScrap
 ![GS](https://web.archive.org/web/20200418020827im_/https://goldenscrap.com/wp-content/uploads/2019/11/golden-scrap-jannah.jpg "GoldenScrap")
+
+# 注意
+UACのオーディオキャプチャ機能を使うには、tinyusbの最新版を使う必要があります。Pico SDK内蔵のtinyusbでは、操作するたびにWindowsがフリーズします。
+そのため、公式リポジトリからダウンロードなりcloneするなりして、`CMakeLists.txt`の環境変数`PICO_TINYUSB_PATH`を正しく設定する必要があります。
+以下は、デフォルトの`${USERPROFILE}/local/tinyusb`に最新版をcloneする手順です（Windows のみ）
+```
+> cd ${USERPROFILE}
+> mkdir local
+> git clone https://github.com/hathach/tinyusb.git
+```
+
+
 # 仕様
 - USB-MIDI で PC から送られてきた信号を音源モジュールに流す
 - 音源モジュールから送られてくるディジタル音声信号を，DAC（PCM5102） が理解できる形式に変換する
