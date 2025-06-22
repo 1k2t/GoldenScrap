@@ -69,9 +69,8 @@ DAM-G70 Cyber DAM[BB]の音源モジュール。SC-8820/8850と同じXP6を搭�
 ugaplus の音源モジュール。制御用マイコンがSH2で、XP6を2個搭載しているため、SC-8850と共通の仕様と思われる。
 
 - SC-8850と同等？
-- H8/510(main CPU)
-- R00232667(M38881M2-150GP sub CPU)
-- R01679978 RA09-002(XP6 tone generator)
+- R02560212 HD6437016E18FV (SH2 main CPU)
+- 2*R01679978 RA09-002(XP6 tone generator)
     - SC-8820/8850と同じチップ
 
 ## pinout
