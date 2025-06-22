@@ -8,6 +8,7 @@ UACのオーディオキャプチャ機能を使うには、tinyusbの最新版�
 ```
 > cd ${USERPROFILE}
 > mkdir local
+> cd local
 > git clone https://github.com/hathach/tinyusb.git
 ```
 
