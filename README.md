@@ -35,27 +35,68 @@
 | 8  | GND       | DAC GND | GND。うちのはDACのGNDに接続 |
 | 9  | LRCK_OUT  | DAC LCK | Pico -> DAC 音声 |
 | 10 | DAC_BCK   | DAC BCK, Pico pin27(GP21) にも接続 | Pico -> DAC音声のクロック（BCLK_INの1/4）|
-| 27 | DAC_BCK | DAC BCK, Pico pin10(DAC_BCK) にも接続 | Pico -> DAC音声のクロック（BCLK_INの1/4）|
-| 29 | BCLK_IN   | Pico 6(BCLK_IN) にも接続 | GS->Picoの音声クロック
 | 38 | GND       | GND | うちのはGS pin3,4に接続 | GND
 | 40 | VBUS      | GS pin1,2(5V), DAC VIN にも接続 |
 
-# GS モジュールのピン配置
-1. 5V
-1. 5V
-1. GND
-1. GND
-1. SDATA
-1. LRCK
-1. BCLK
-1. GND
-1. MIDI_IN_A
-1. MIDI_IN_B
-1. MIDI_OUT
-1. SDDA2
-1. RESET#
-1. GND
+# 03-SC-R5
+DAM-G70 Cyber DAM[BB]の音源モジュール。SC-8820/8850と同じXP6を搭載しているが、SC-8820,8850のマップはない。
 
-# 参考
-- hid_composite example from TinyUSB
-- [i2s-example](https://github.com/malacalypse/rp2040_i2s_example)
+- SC-88Proと同等？
+- H8/510(main CPU)
+- R00232667(M38881M2-150GP sub CPU)
+- R01679978 RA09-002(XP6 tone generator)
+    - SC-8820/8850と同じチップ
+
+## pinout
+|Pin #|Label|Description|
+|:---:|:---|:---:|
+|1  |5V         |Power +5V|
+|2  |5V         |Power +5V|
+|3  |GND        |Power GND|
+|4  |GND        |Power GND|
+|5  |SDATA_1    ||
+|6  |LRCK       ||
+|7  |BCLK       ||
+|8  |GND        ||
+|9  |MIDI_IN_A  ||
+|10 |MIDI_IN_B  ||
+|11 |MIDI_OUT   ||
+|12 |SDATA_2    ||
+|13 |RESET#     ||
+|14 |GND        ||
+
+# 03-SC-SA（出力フォーマットが違うため、現時点では動かない）
+ugaplusの音源モジュール。制御用マイコンがSH2で、XP6を2個搭載しているため、SC-8850と共通の仕様と思われる。
+出力フォーマットが03-SC-R5と異なり、64Fsになっている模様。（03-SC-R5は256Fs）
+
+- SC-8850と同等？
+- R02560212 HD6437016E18FV (SH2 main CPU)
+- 2*R01679978 RA09-002(XP6 tone generator)
+    - SC-8820/8850と同じチップ
+
+## pinout
+|Connector|Pin #|Label|Description|
+|:---:|:---:|:---|:---|
+|CN4    |1|VCC|Power +5V|
+|       |2|VCC|Power +5V|
+|       |3|GND|Power GND|
+|       |4|GND|Power GND|
+|       |5|_RESET#|Reset?|
+|CN5    |1|BCK_64FS|Audio data bit clock(64Fs)|
+|       |2|SDATA_1|Audio Data #1(64Fs)|
+|       |3|SDATA_2|Audio Data #2(64Fs)|
+|       |4|LRCK |Audio LRCK|
+|       |5|SCK_256FS|Audio Data SCK(256Fs)|
+|       |6|GND|Power GND|
+|       |7|MIDI_OUT_1|MIDI out #1|
+|       |8|MIDI_IN_1 |MIDI in #1|
+|       |9|MIDI_OUT_2|MIDI out #2|
+|       |10|MIDI_IN_2 |MIDI in #2|
+|       |11|GND|Power GND|
+
+# 参考文献
+- [audio_4_channel_mic](https://github.com/pschatzmann/tinyusb/tree/master/examples/device/audio_4_channel_mic),[dev_hid_composite](https://github.com/raspberrypi/pico-examples/tree/master/usb/device/dev_hid_composite): テンプレートとして利用したプロジェクト
+- [i2s-example](https://github.com/malacalypse/rp2040_i2s_example):DMAを使ったI2Sの取り込み
+
+# 謝辞
+- 03-SC-SAのピン配置は、[`@yuyukkuri_PC`](https://x.com/yuyukkuri_PC)に手伝ってもらいました。
