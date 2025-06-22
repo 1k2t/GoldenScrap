@@ -38,7 +38,16 @@
 | 38 | GND       | GND | うちのはGS pin3,4に接続 | GND
 | 40 | VBUS      | GS pin1,2(5V), DAC VIN にも接続 |
 
-# 03-SC-R5 pinout
+# 03-SC-R5
+DAM-G70 Cyber DAM[BB]の音源モジュール。SC-8820/8850と同じXP6を搭載しているが、SC-8820,8850のマップはない。
+
+- SC-88Proと同等？
+- H8/510(main CPU)
+- R00232667(M38881M2-150GP sub CPU)
+- R01679978 RA09-002(XP6 tone generator)
+    - SC-8820/8850と同じチップ
+
+## pinout
 |Pin #|Label|Description|
 |:---:|:---|:---:|
 |1  |5V         |Power +5V|
@@ -56,7 +65,16 @@
 |13 |RESET#     ||
 |14 |GND        ||
 
-# 03-SC-SA pinout
+# 03-SC-SA
+ugaplus の音源モジュール。制御用マイコンがSH2で、XP6を2個搭載しているため、SC-8850と共通の仕様と思われる。
+
+- SC-8850と同等？
+- H8/510(main CPU)
+- R00232667(M38881M2-150GP sub CPU)
+- R01679978 RA09-002(XP6 tone generator)
+    - SC-8820/8850と同じチップ
+
+## pinout
 |Connector|Pin #|Label|Description|
 |:---:|:---:|:---|:---|
 |CN4    |1|VCC|Power +5V|
