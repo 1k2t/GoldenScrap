@@ -70,7 +70,12 @@ void _irq_rx_sync(void){
 static void process_audio(const uint32_t* input, uint32_t* output, size_t num_frames) {
     // Just copy the input to the output
     for (size_t i = 0; i < num_frames * 2; i++) {
-        output[i] = input[i] << 12;
+        /* FIXME: 要調査, オシロスコープを見ると、有効データは 18 bit っぽい
+            出力（DAC, USB は、今のところ MSB（[31:]）に有効データを入れる必要があるので、シフトする。
+            input:   xxxx_xxxx_xxxx_xxDD_DDDD_DDDD_DDDD_DDDD
+            output:  DDDD_DDDD_DDDD_DDDD_DDxx_xxxx_xxxx_xxxx
+        */
+        output[i] = input[i] << 14;
     }
 }
 static AudioConv *_irq_dma_arg;
