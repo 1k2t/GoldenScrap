@@ -39,7 +39,8 @@ enum {
   STRID_AUDIO_IN,
   STRID_UAC_TERM_NAME,
   STRID_UAC_TERM_NAME2,
-  STRID_MIDI
+  STRID_MIDI_A,
+  STRID_MIDI_B
 };
 
 // Unit numbers are arbitrary selected

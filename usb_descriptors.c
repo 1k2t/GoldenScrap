@@ -33,8 +33,12 @@
  *   [MSB]     AUDIO | MIDI | HID | MSC | CDC          [LSB]
  */
 #define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4400 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-    _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VENDOR, 5) )
+// Fixed at the v2.0.1 value (0x4418): the auto map below would change the
+// PID now that CFG_TUD_MIDI is 2 (two MIDI functions), and the VID/PID
+// pair must stay constant so hosts keep recognising the same device.
+// #define USB_PID           (0x4400 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
+//     _PID_MAP(MIDI, 3) | _PID_MAP(AUDIO, 4) | _PID_MAP(VENDOR, 5) )
+#define USB_PID           0x4418
 
 //--------------------------------------------------------------------+
 // Device Descriptors
@@ -54,7 +58,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = 0xCafe,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0100,
+    .bcdDevice          = 0x0101,  // raised from 0x0100 for the changed descriptor layout, so hosts re-read enumeration instead of reusing cached descriptors
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -77,10 +81,27 @@ enum
 {
   ITF_NUM_AUDIO_CONTROL = 0,
   ITF_NUM_AUDIO_STREAMING,
-  ITF_NUM_MIDI,
-  ITF_NUM_MIDI_STREAMING,
+  ITF_NUM_MIDI_A,
+  ITF_NUM_MIDI_A_STREAMING,
+  ITF_NUM_MIDI_B,
+  ITF_NUM_MIDI_B_STREAMING,
   ITF_NUM_TOTAL
 };
+
+// Two independent USB-MIDI functions (port A and port B), each an
+// AudioControl + MIDIStreaming pair with a single cable, assembled from
+// the same TinyUSB building blocks as TUD_MIDI_DESCRIPTOR. The function
+// string index names both the AC interface (iInterface) and the jacks,
+// so hosts see "GoldenScrap MIDI PART A" / "GoldenScrap MIDI PART B" per function.
+// The ports are told apart by USB interface, not by cable number; each
+// function has its own bulk endpoint pair.
+#define GS_MIDI_FUNCTION(_itfnum, _stridx, _epout, _epin, _epsize) \
+  TUD_MIDI_DESC_HEAD(_itfnum, _stridx, 1),\
+  TUD_MIDI_DESC_JACK_DESC(1, _stridx),\
+  TUD_MIDI_DESC_EP(_epout, _epsize, 1),\
+  TUD_MIDI_JACKID_IN_EMB(1),\
+  TUD_MIDI_DESC_EP(_epin, _epsize, 1),\
+  TUD_MIDI_JACKID_OUT_EMB(1)
 
 #define CONFIG_TOTAL_LEN    	(TUD_CONFIG_DESC_LEN + \
   CFG_TUD_AUDIO * GS_TUD_AUDIO_IN_DESC_LEN +\
@@ -98,9 +119,13 @@ enum
 #else
   #define EPNUM_AUDIO    (0x01)
 
-  #define EPNUM_MIDI     (0x02)
-  #define EPNUM_MIDI_OUT (EPNUM_MIDI)
-  #define EPNUM_MIDI_IN  (EPNUM_MIDI | 0x80)
+  #define EPNUM_MIDI_A   (0x02)
+  #define EPNUM_MIDI_A_OUT (EPNUM_MIDI_A)
+  #define EPNUM_MIDI_A_IN  (EPNUM_MIDI_A | 0x80)
+
+  #define EPNUM_MIDI_B   (0x03)
+  #define EPNUM_MIDI_B_OUT (EPNUM_MIDI_B)
+  #define EPNUM_MIDI_B_IN  (EPNUM_MIDI_B | 0x80)
 #endif
 
 uint8_t const desc_configuration[] =
@@ -111,10 +136,16 @@ uint8_t const desc_configuration[] =
   // Interface number, string index, EP Out & EP In address, EP size
   GS_TUD_AUDIO_IN_DESCRIPTOR(/*_itfnum*/ ITF_NUM_AUDIO_CONTROL, /*_stridx*/ STRID_AUDIO_IN, /*_nBytesPerSample*/ CFG_TUD_AUDIO_FUNC_1_N_BYTES_PER_SAMPLE_TX, /*_nBitsUsedPerSample*/ 20, /*_epin*/ 0x80 | EPNUM_AUDIO, /*_epsize*/ CFG_TUD_AUDIO_EP_SZ_IN),
 
-  // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MIDI_DESCRIPTOR(ITF_NUM_MIDI, STRID_MIDI, EPNUM_MIDI_OUT, EPNUM_MIDI_IN, 64)
+  // MIDI function A (port A): AC + MS interfaces, named by STRID_MIDI_A
+  GS_MIDI_FUNCTION(ITF_NUM_MIDI_A, STRID_MIDI_A, EPNUM_MIDI_A_OUT, EPNUM_MIDI_A_IN, 64),
+
+  // MIDI function B (port B): AC + MS interfaces, named by STRID_MIDI_B
+  GS_MIDI_FUNCTION(ITF_NUM_MIDI_B, STRID_MIDI_B, EPNUM_MIDI_B_OUT, EPNUM_MIDI_B_IN, 64)
 
 };
+
+_Static_assert(sizeof(desc_configuration) == CONFIG_TOTAL_LEN,
+               "configuration descriptor length mismatch");
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
@@ -138,7 +169,8 @@ char const* string_desc_arr [] = {
     "GoldenScrap Audio IN",                        // 4: Audio Interface
     "GoldenScrap Audio IN 1", 
     "GoldenScrap Audio IN 2",
-    "GoldenScrap MIDI"
+    "GoldenScrap MIDI PART A",               // 7: MIDI function A name (AC iInterface + jacks)
+    "GoldenScrap MIDI PART B"                // 8: MIDI function B name (AC iInterface + jacks)
 };
 static uint16_t _desc_str[32 + 1];
 

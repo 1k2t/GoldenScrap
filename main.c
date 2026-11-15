@@ -120,15 +120,18 @@ int main(void)
   }
 
   MidiApp usbmidi;
-  MidiApp_init(&usbmidi, uart0, 0, 1);
+  MidiApp_init(&usbmidi, uart0, 0, 1, 0);       // port A: UART0, USB-MIDI interface 0
+  MidiApp usbmidi_b;
+  MidiApp_init(&usbmidi_b, uart1, 8, 9, 1);     // port B: UART1, USB-MIDI interface 1 (RX is not wired on the module side)
   audio_init();
-  
+
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
     audio_task();
     MidiApp_task(&usbmidi);
+    MidiApp_task(&usbmidi_b);
   }
 }
 
