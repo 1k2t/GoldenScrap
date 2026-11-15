@@ -17,6 +17,22 @@ UACのオーディオキャプチャ機能を使うには、tinyusbの最新版�
 - USB-MIDI で PC から送られてきた信号を音源モジュールに流す
 - 音源モジュールから送られてくるディジタル音声信号を，DAC（PCM5102） が理解できる形式に変換する
 
+# MIDI 2ポート（PART A / PART B）
+音源モジュールの MIDI_IN_A / MIDI_IN_B の2系統に対応し、ポートAとポートBをそれぞれ独立したUSB MIDIファンクションとして列挙します。USB Audio INとMIDIが別デバイスとして見えるのと同じ形で、OSからは次の2つのMIDIデバイスとして見えます。
+
+- GoldenScrap MIDI PART A（ポートA、UART0）
+- GoldenScrap MIDI PART B（ポートB、UART1）
+
+Windowsではデバイスマネージャーに GoldenScrap MIDI PART A / GoldenScrap MIDI PART B が別デバイスとして表示され、TMIDIのような旧来のアプリでもそのままの名前でポートを選べます。
+
+## ポートBの配線
+ポートBは Pico Pin 11（GP8）→ GS Pin 10（MIDI_IN_B）に接続します。GS側のMIDI OUTは GS Pin 11 の1本だけなので、ポートBの戻り（Pico Pin 12、GP9）に接続する信号はありません。未接続でもノイズを拾わないよう、ファームウェア側でプルアップしています。
+
+旧バージョンを同じPCで使っていた場合、Windowsの列挙キャッシュで旧い名前（GoldenScrap MIDI）が残ることがあります。その場合はデバイスマネージャーでデバイスをアンインストールしてから挿し直してください。
+
+## 動作確認
+`test/ab_simultaneous_pan_fxoff.mid` を使います。プレイヤー（TMIDI等）でポートAに GoldenScrap MIDI PART A、ポートBに GoldenScrap MIDI PART B を割り当てて再生してください。前半でポートAの音が左からのみ、続いてポートBの音が右からのみ、最後に両方が鳴れば正常です（ファイル側でエフェクトはOFFにしてあるので、パンが混ざりません）。
+
 # 音声取り込み
 ## 入力データ仕様
 - ~~24~~**20** bit, MSB-First
@@ -48,6 +64,8 @@ UACのオーディオキャプチャ機能を使うには、tinyusbの最新版�
 | 8  | GND       | DAC GND | GND。うちのはDACのGNDに接続 |
 | 9  | LRCK_OUT  | DAC LCK | Pico -> DAC 音声 |
 | 10 | DAC_BCK   | DAC BCK, Pico pin27(GP21) にも接続 | Pico -> DAC音声のクロック（BCLK_INの1/4）|
+| 11 | MIDI OUT B | GS Pin 10(MIDI_IN_B) | Pico→GS MIDI信号（ポートB） |
+| 12 | MIDI IN B  | - | GS側に戻りがないため未接続 |
 | 38 | GND       | GND | うちのはGS pin3,4に接続 | GND
 | 40 | VBUS      | GS pin1,2(5V), DAC VIN にも接続 |
 
